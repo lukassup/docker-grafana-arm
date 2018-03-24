@@ -1,0 +1,40 @@
+FROM golang:1.10 as build
+
+ARG REF=v2.2.1
+ENV PROMETHEUS_VERSION=$REF
+
+WORKDIR /go/src/github.com/prometheus/prometheus
+
+RUN git clone --depth=1 --branch=$REF https://github.com/prometheus/prometheus.git .
+
+COPY promu-strip.patch .
+
+RUN git apply promu-strip.patch
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 make build
+
+# HACK: Create and copy symlinks from x86 arch builder because ln/mkdir won't work in arm arch busybox
+RUN mkdir -p /prometheus /etc/prometheus /usr/share/prometheus/console_libraries /usr/share/prometheus/consoles && \
+    ln -s /usr/share/prometheus/console_libraries /usr/share/prometheus/consoles/ /etc/prometheus/
+
+FROM arm32v7/busybox:latest
+
+LABEL maintainer "Lukas Šupienis <lukassup@yahoo.com>"
+
+COPY --from=build /go/src/github.com/prometheus/prometheus/prometheus                             /bin/prometheus
+COPY --from=build /go/src/github.com/prometheus/prometheus/promtool                               /bin/promtool
+COPY --from=build /go/src/github.com/prometheus/prometheus/documentation/examples/prometheus.yml  /etc/prometheus/prometheus.yml
+COPY --from=build /go/src/github.com/prometheus/prometheus/console_libraries/                     /usr/share/prometheus/console_libraries/
+COPY --from=build /go/src/github.com/prometheus/prometheus/consoles/                              /usr/share/prometheus/consoles/
+COPY --from=build /etc/prometheus/console_libraries /etc/prometheus/
+COPY --from=build /etc/prometheus/consoles /etc/prometheus/
+
+WORKDIR /prometheus
+
+EXPOSE     9090
+VOLUME     [ "/prometheus" ]
+ENTRYPOINT [ "/bin/prometheus" ]
+CMD        [ "--config.file=/etc/prometheus/prometheus.yml", \
+             "--storage.tsdb.path=/prometheus", \
+             "--web.console.libraries=/usr/share/prometheus/console_libraries", \
+             "--web.console.templates=/usr/share/prometheus/consoles" ]

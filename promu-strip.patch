@@ -1,0 +1,13 @@
+diff --git a/.promu.yml b/.promu.yml
+index 27aa3aa..7066ae2 100644
+--- a/.promu.yml
++++ b/.promu.yml
+@@ -8,6 +8,8 @@ build:
+           path: ./cmd/promtool
+     flags: -a -tags netgo
+     ldflags: |
++        -s
++        -w
+         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Version={{.Version}}
+         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Revision={{.Revision}}
+         -X {{repoPath}}/vendor/github.com/prometheus/common/version.Branch={{.Branch}}
